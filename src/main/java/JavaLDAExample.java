@@ -17,7 +17,11 @@ import org.apache.spark.mllib.linalg.Matrix;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
 import java.util.List;
+import java.io.BufferedWriter;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
 import java.io.Serializable;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import org.apache.spark.SparkConf;
@@ -78,7 +82,7 @@ public class JavaLDAExample {
     }
     
 
-//    
+    
     JavaRDD<List<String>> corpuss = sc.parallelize(lists);
     List<Tuple2<String, Long>> termCounts = corpuss.flatMap(
     	new FlatMapFunction<List<String>, String>() {
@@ -117,14 +121,12 @@ public class JavaLDAExample {
     	vocabArray.add(termCounts.get(i)._1);
     }
     
-//    
     final HashMap<String, Long> vocab = new HashMap<String, Long>();
     for(Tuple2<String,Long> item: sc.parallelize(vocabArray).zipWithIndex().collect()){
     	vocab.put(item._1, item._2);
     }
     
 
-//    
     JavaRDD<Tuple2<Long, Vector>> documents = corpuss.zipWithIndex().map(
 		new Function<Tuple2<List<String>,Long> , Tuple2<Long,Vector>>() {
 			@SuppressWarnings("unchecked")
@@ -161,9 +163,7 @@ public class JavaLDAExample {
 		}	
     );
     
-    System.out.println(documents.collect());
 
-//    
     JavaPairRDD<Long, Vector> cor = JavaPairRDD.fromJavaRDD(documents);
     
     int numTopics = 10;
@@ -173,15 +173,26 @@ public class JavaLDAExample {
     Matrix topics = ldaModel.topicsMatrix();
     int maxTermsPerTopic = 10;
     Tuple2<int[], double[]>[] topicIndices = ldaModel.describeTopics(maxTermsPerTopic);
-
-	for(Tuple2<int[], double[]> topic: topicIndices){
-		System.out.println("TOPIC:");
-		int[] terms = topic._1;
-		double[] termWeights = topic._2;
-		for(int i = 0 ; i < terms.length; i++){
-			System.out.println(vocabArray.get(terms[i]) + "\t" + termWeights[i]);
+   
+    
+    try (Writer writer = new BufferedWriter(new OutputStreamWriter( new FileOutputStream("output.txt"), "utf-8"))) 
+    {
+		for(Tuple2<int[], double[]> topic: topicIndices){
+			writer.write("TOPIC:\n");
+			int[] terms = topic._1;
+			double[] termWeights = topic._2;
+			for(int i = 0 ; i < terms.length; i++){
+				writer.write(vocabArray.get(terms[i]) + ":\t" + termWeights[i] + "\n");
+			}
+			writer.write("\n");
+			
 		}
+    }
+    catch (Exception e) {
+		// TODO: handle exception
 	}
+    
+	
     
   }
 }

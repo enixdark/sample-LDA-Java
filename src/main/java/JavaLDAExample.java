@@ -42,12 +42,12 @@ public class JavaLDAExample {
 	  // Create a SparkContext with this configuration
     SparkConf conf = new SparkConf().setAppName("LDA Example");
     conf.set("spark.app.name", "My Spark App");
-	conf.set("spark.master", "local[4]");
+	conf.set("spark.master", "local[2]");
 	conf.set("spark.ui.port", "36000");
     JavaSparkContext sc = new JavaSparkContext(conf);
     // Load and parse the data
 //    String path = "/home/thuy/sample.txt";
-    String path = "/home/thuy/mini_newsgroups/sci.med/*";
+    String path = "/home/thuy/mini_newsgroups/sci.space/60191.txt";
     JavaRDD<String> data = sc.wholeTextFiles(path).map(
     		new Function<Tuple2<String,String>, String>() {
 				@Override
@@ -57,6 +57,8 @@ public class JavaLDAExample {
 				}
 			}
     );
+    
+
     
     JavaRDD<List<String>> corpus = data.map(new Content());
     corpus.cache();
@@ -68,17 +70,17 @@ public class JavaLDAExample {
 				@Override
 				public Boolean call(String s) throws Exception {
 					// TODO Auto-generated method stub
-					return s.matches("[A-za-z]+");
+					return s.length() > 3 && s.matches("[A-za-z]+");
 				}
 			}).collect();
 	    	lists.add(tmp);
     	}
     }
     
+
+//    
     JavaRDD<List<String>> corpuss = sc.parallelize(lists);
-    List<Tuple2<String, Long>> termCounts = 
-    corpuss
-    .flatMap(
+    List<Tuple2<String, Long>> termCounts = corpuss.flatMap(
     	new FlatMapFunction<List<String>, String>() {
     		public Iterable<String> call(List<String> list) {
     			return list;
@@ -96,20 +98,33 @@ public class JavaLDAExample {
 	      return i1 + i2;
 	    }
 	})
-    .sortByKey()
 	.collect();
+    
+    Collections.sort(termCounts, new Comparator<Tuple2<String, Long>>(){
+		@Override
+		public int compare(Tuple2<String, Long> v1, Tuple2<String, Long> v2) {
+			// TODO Auto-generated method stub
+			return (int)(v2._2 - v1._2);
+	}});
+
+    
+    
+    
     
     int numStopwords = 20;
     List<String> vocabArray = new ArrayList<String>();
-    for(int i = 0; i < termCounts.size() - numStopwords; i++){
+    for(int i = termCounts.size() - 1 ; i >  numStopwords - 1; i-- ){
     	vocabArray.add(termCounts.get(i)._1);
     }
     
+//    
     final HashMap<String, Long> vocab = new HashMap<String, Long>();
     for(Tuple2<String,Long> item: sc.parallelize(vocabArray).zipWithIndex().collect()){
     	vocab.put(item._1, item._2);
     }
     
+
+//    
     JavaRDD<Tuple2<Long, Vector>> documents = corpuss.zipWithIndex().map(
 		new Function<Tuple2<List<String>,Long> , Tuple2<Long,Vector>>() {
 			@SuppressWarnings("unchecked")
@@ -146,6 +161,9 @@ public class JavaLDAExample {
 		}	
     );
     
+    System.out.println(documents.collect());
+
+//    
     JavaPairRDD<Long, Vector> cor = JavaPairRDD.fromJavaRDD(documents);
     
     int numTopics = 10;
@@ -155,34 +173,16 @@ public class JavaLDAExample {
     Matrix topics = ldaModel.topicsMatrix();
     int maxTermsPerTopic = 10;
     Tuple2<int[], double[]>[] topicIndices = ldaModel.describeTopics(maxTermsPerTopic);
-    
-    
-//    topicIndices.foreach { case (terms, termWeights) =>
-//    println("TOPIC:")
-//    terms.zip(termWeights).foreach { case (term, weight) =>
-//      println(s"${vocabArray(term.toInt)}\t$weight")
-//    }
-//    println()
-//  }
-//    
-    
-    System.out.println("==================corpus====================");
-//    System.out.println(topics);
-    for (int topic = 0; topic < 10; topic++) {
-        System.out.print("==================Topic " + topic + ":\n");
-        for (int word = 0; word < ldaModel.vocabSize(); word++) {
-          System.out.print(vocabArray.get(word) + " : " + topics.apply(word, topic) + "\n");
-        }
-//        System.out.println();
-        System.out.println("===============================================\n");
 
-      }
+	for(Tuple2<int[], double[]> topic: topicIndices){
+		System.out.println("TOPIC:");
+		int[] terms = topic._1;
+		double[] termWeights = topic._2;
+		for(int i = 0 ; i < terms.length; i++){
+			System.out.println(vocabArray.get(terms[i]) + "\t" + termWeights[i]);
+		}
+	}
     
-    
-    
-    
-
-
   }
 }
 

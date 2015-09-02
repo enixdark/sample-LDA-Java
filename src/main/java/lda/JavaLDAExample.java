@@ -19,6 +19,9 @@ import org.apache.spark.mllib.linalg.Matrix;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.rdd.RDD;
+import org.apache.spark.sql.DataFrame;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SQLContext;
 
 import java.util.List;
 import java.io.BufferedWriter;
@@ -45,6 +48,7 @@ class Content implements Function<String, List<String>>, Serializable {
 
 public class JavaLDAExample {
 	public static void main(String[] args) {
+		
 		SparkConf conf = new SparkConf().setAppName("LDA Example");
 		conf.set("spark.app.name", "My Spark App");
 		conf.set("spark.master", "local[2]");
@@ -52,18 +56,20 @@ public class JavaLDAExample {
 		JavaSparkContext sc = new JavaSparkContext(conf);
 		// Load and parse the data
 		//	    String path = "/home/thuy/sample.txt";
-		String path = "/home/thuy/mini_newsgroups/*";
-		JavaRDD<String> data = sc.wholeTextFiles(path).map(
-				new Function<Tuple2<String,String>, String>() {
-					@Override
-					public String call(Tuple2<String, String> t) throws Exception {
-						// TODO Auto-generated method stub
-						return t._2;
-					}
+		String path = "/home/thuy/data.csv";
+		SQLContext sqlContext = new SQLContext(sc);
+		DataFrame df = sqlContext.read().format("com.databricks.spark.csv").option("header", "true").load(path);
+		JavaRDD<String> data = df.toJavaRDD().map(
+				new Function<Row,String>() {
+				@Override
+				public String call(Row t) throws Exception {
+					// TODO Auto-generated method stub
+					return t.toString();
 				}
-				);
-
-
+			}
+		);
+		
+		
 
 		JavaRDD<List<String>> corpus = data.map(new Content());
 		corpus.cache();
@@ -164,12 +170,22 @@ public class JavaLDAExample {
 					}
 				}	
 				);
-
-
+		
+		
+//		try (Writer writer = new BufferedWriter(new OutputStreamWriter( new FileOutputStream("output.txt"), "utf-8"))) {
+//			for( Tuple2<String,Long> t : termCounts){
+//				writer.write(t._1 + " -> " + t._2);
+//			}
+//	
+//		}
+//		catch (Exception e) {
+//			// TODO: handle exception
+//		}
+		
 		JavaPairRDD<Long, Vector> cor = JavaPairRDD.fromJavaRDD(documents);
 
-		int numTopics = 3;
-		int maxIterations = 10;
+		int numTopics = 5;
+		int maxIterations = 20;
 
 		DistributedLDAModel ldaModel = (DistributedLDAModel) new LDA()
 												.setK(numTopics)
@@ -182,9 +198,9 @@ public class JavaLDAExample {
 		JavaRDD<Tuple2<Object, Vector>> topicdistributes = ldaModel.topicDistributions().toJavaRDD();
 		Tuple2<int[], double[]>[] topicIndices = ldaModel.describeTopics(maxTermsPerTopic);
 		
-		for(Tuple2<Object, Vector> item: topicdistributes.collect()){
-			System.out.println(item._2);
-		}
+//		for(Tuple2<Object, Vector> item: topicdistributes.collect()){
+//			System.out.println(item._2);
+//		}
 
 		try (Writer writer = new BufferedWriter(new OutputStreamWriter( new FileOutputStream("output.txt"), "utf-8"))) 
 		{
@@ -205,8 +221,6 @@ public class JavaLDAExample {
 
 
 
-	}
-
-
+ }
 }
 
